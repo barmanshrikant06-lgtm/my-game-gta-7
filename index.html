@@ -1,0 +1,350 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTA 7 - Mumbai City</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#87ceeb;font-family:Arial}
+canvas{display:block}
+#hud{
+position:absolute;top:15px;left:15px;
+color:white;background:#0009;padding:15px;
+border-radius:12px;line-height:1.8;
+}
+#help{
+position:absolute;bottom:15px;left:50%;
+transform:translateX(-50%);
+color:white;background:#000b;padding:12px;
+border-radius:10px;text-align:center;
+font-size:12px;width:95%;max-width:450px
+}
+#crosshair{
+position:absolute;top:50%;left:50%;
+transform:translate(-50%,-50%);
+color:white;font-size:25px;pointer-events:none
+}
+button{
+background:#ffbd00;border:0;padding:12px;
+border-radius:8px;font-weight:bold;
+margin:3px;cursor:pointer
+}
+#mobile{
+position:absolute;bottom:100px;right:12px;
+display:none;grid-template-columns:repeat(2,65px);
+}
+#mobile button{height:55px;background:#222;color:white}
+</style>
+</head>
+<body>
+
+<div id="hud">
+<b>🔥 GTA 7 - MUMBAI CITY</b><br>
+❤️ Health: <span id="health">100</span><br>
+🚗 Vehicle: <span id="vehicle">No</span><br>
+🔫 Ammo: Unlimited<br>
+💰 Money: $5000<br>
+<button onclick="enterCar()">ENTER / EXIT CAR</button>
+<button onclick="shoot()">SHOOT</button>
+</div>
+
+<div id="crosshair">+</div>
+
+<div id="help">
+WASD = Move | SHIFT = Run | SPACE = Jump<br>
+E = Enter/Exit Car | Mouse Click = Shoot<br>
+Arrow keys / WASD = Drive car
+</div>
+
+<div id="mobile">
+<button onclick="moveForward()">⬆</button>
+<button onclick="shoot()">🔫</button>
+<button onclick="moveLeft()">⬅</button>
+<button onclick="moveBackward()">⬇</button>
+<button onclick="moveRight()">➡</button>
+<button onclick="enterCar()">🚗</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+scene.fog = new THREE.Fog(0x87ceeb,60,230);
+
+const camera = new THREE.PerspectiveCamera(
+75,window.innerWidth/window.innerHeight,0.1,500
+);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x555555,2));
+
+const sun=new THREE.DirectionalLight(0xffffff,2);
+sun.position.set(40,80,30);
+sun.castShadow=true;
+scene.add(sun);
+
+function box(x,y,z,sx,sy,sz,color){
+const mesh=new THREE.Mesh(
+new THREE.BoxGeometry(sx,sy,sz),
+new THREE.MeshStandardMaterial({color})
+);
+mesh.position.set(x,y,z);
+mesh.castShadow=true;
+mesh.receiveShadow=true;
+scene.add(mesh);
+return mesh;
+}
+
+// Ground
+box(0,-0.5,0,500,1,500,0x477d39);
+
+// Roads
+box(0,0.02,0,500,0.1,18,0x292929);
+box(0,0.03,0,18,0.1,500,0x292929);
+
+// Road lane markings
+for(let i=-240;i<250;i+=15){
+box(i,0.1,0,7,0.04,0.3,0xffffff);
+box(0,0.1,i,0.3,0.04,7,0xffffff);
+}
+
+// Sidewalks
+for(let i=-240;i<250;i+=15){
+box(i,0.2,11,14,0.3,3,0x999999);
+box(i,0.2,-11,14,0.3,3,0x999999);
+box(11,0.2,i,3,0.3,14,0x999999);
+box(-11,0.2,i,3,0.3,14,0x999999);
+}
+
+// Buildings
+const buildingColors=[
+0x9b8e81,0xaaaaaa,0x777d88,
+0xc7a77c,0x8c999b,0xd1d1d1
+];
+
+for(let x=-200;x<=200;x+=30){
+for(let z=-200;z<=200;z+=30){
+if(Math.abs(x)<23 || Math.abs(z)<23)continue;
+
+let h=12+Math.random()*45;
+let w=12+Math.random()*8;
+let d=12+Math.random()*8;
+let color=buildingColors[
+Math.floor(Math.random()*buildingColors.length)
+];
+
+box(x,h/2,z,w,h,d,color);
+
+// Windows
+for(let yy=4;yy<h;yy+=5){
+for(let xx=-w/2+2;xx<w/2;xx+=3){
+box(x+xx,yy,z+d/2+0.06,1.2,1.5,0.1,0x65bce5);
+box(x+xx,yy,z-d/2-0.06,1.2,1.5,0.1,0x65bce5);
+}
+}
+}
+}
+
+// Player
+const player=new THREE.Group();
+scene.add(player);
+
+const skin=new THREE.MeshStandardMaterial({color:0xd49a70});
+const shirt=new THREE.MeshStandardMaterial({color:0x1565c0});
+const pants=new THREE.MeshStandardMaterial({color:0x252525});
+
+function part(parent,geo,mat,x,y,z){
+let m=new THREE.Mesh(geo,mat);
+m.position.set(x,y,z);
+m.castShadow=true;
+parent.add(m);
+return m;
+}
+
+// Body
+part(player,new THREE.BoxGeometry(1,1.3,0.5),shirt,0,1.5,0);
+part(player,new THREE.SphereGeometry(.34,16,16),skin,0,2.45,0);
+
+// Arms
+part(player,new THREE.BoxGeometry(.25,1,.3),skin,-.65,1.5,0);
+part(player,new THREE.BoxGeometry(.25,1,.3),skin,.65,1.5,0);
+
+// Legs
+part(player,new THREE.BoxGeometry(.32,1,.35),pants,-.25,.5,0);
+part(player,new THREE.BoxGeometry(.32,1,.35),pants,.25,.5,0);
+
+player.position.set(0,0,5);
+
+// Car
+const car=new THREE.Group();
+scene.add(car);
+
+const red=new THREE.MeshStandardMaterial({color:0xd50000});
+const black=new THREE.MeshStandardMaterial({color:0x111111});
+const glass=new THREE.MeshStandardMaterial({
+color:0x8bd7e9,metalness:.3,roughness:.2
+});
+
+part(car,new THREE.BoxGeometry(4,1,7),red,0,1,0);
+part(car,new THREE.BoxGeometry(3.3,1.2,3),glass,0,2,0);
+
+let wheels=[];
+for(let x of [-2,2]){
+for(let z of [-2.2,2.2]){
+let wheel=part(car,new THREE.CylinderGeometry(.65,.65,.4,20),black,x,.55,z);
+wheel.rotation.z=Math.PI/2;
+wheels.push(wheel);
+}
+}
+car.position.set(6,0,0);
+
+// Trees
+for(let i=0;i<70;i++){
+let x=(Math.random()-.5)*400;
+let z=(Math.random()-.5)*400;
+if(Math.abs(x)<18||Math.abs(z)<18)continue;
+box(x,2,z,.8,4,.8,0x754321);
+let leaves=new THREE.Mesh(
+new THREE.SphereGeometry(2.5,10,10),
+new THREE.MeshStandardMaterial({color:0x167d32})
+);
+leaves.position.set(x,5,z);
+scene.add(leaves);
+}
+
+// Shooting
+const bullets=[];
+function shoot(){
+let direction=new THREE.Vector3();
+camera.getWorldDirection(direction);
+let bullet=new THREE.Mesh(
+new THREE.SphereGeometry(.12,8,8),
+new THREE.MeshBasicMaterial({color:0xffee00})
+);
+bullet.position.copy(player.position);
+bullet.position.y+=1.7;
+bullet.userData.velocity=direction.multiplyScalar(2.5);
+scene.add(bullet);
+bullets.push(bullet);
+}
+
+// Controls
+const keys={};
+let inCar=false;
+let speed=0;
+let angle=0;
+let health=100;
+
+document.addEventListener('keydown',e=>{
+keys[e.key.toLowerCase()]=true;
+if(e.key.toLowerCase()==='e')enterCar();
+if(e.code==='Space'&&!inCar)player.position.y=.5;
+});
+
+document.addEventListener('keyup',e=>{
+keys[e.key.toLowerCase()]=false;
+if(e.code==='Space'&&!inCar)player.position.y=0;
+});
+
+document.addEventListener('click',e=>{
+if(e.target.tagName==='CANVAS')shoot();
+});
+
+function enterCar(){
+if(!inCar && player.position.distanceTo(car.position)<5){
+inCar=true;
+player.visible=false;
+}
+else if(inCar){
+inCar=false;
+player.visible=true;
+player.position.copy(car.position);
+player.position.x+=4;
+}
+document.getElementById('vehicle').innerText=inCar?'Yes':'No';
+}
+
+// Mobile controls
+function moveForward(){keys.w=true;setTimeout(()=>keys.w=false,200)}
+function moveBackward(){keys.s=true;setTimeout(()=>keys.s=false,200)}
+function moveLeft(){keys.a=true;setTimeout(()=>keys.a=false,200)}
+function moveRight(){keys.d=true;setTimeout(()=>keys.d=false,200)}
+
+if('ontouchstart' in window){
+document.getElementById('mobile').style.display='grid';
+}
+
+// Camera
+const offset=new THREE.Vector3(0,7,12);
+
+function animate(){
+requestAnimationFrame(animate);
+
+let target=inCar?car:player;
+
+if(inCar){
+if(keys.w) speed=Math.min(speed+.025,.8);
+else if(keys.s) speed=Math.max(speed-.025,-.5);
+else speed*=.97;
+
+if(keys.a)angle+=.035;
+if(keys.d)angle-=.035;
+
+car.rotation.y=angle;
+car.position.x-=Math.sin(angle)*speed;
+car.position.z-=Math.cos(angle)*speed;
+
+wheels.forEach(w=>w.rotation.x+=speed);
+}else{
+let movement=0;
+let turn=0;
+if(keys.w)movement=1;
+if(keys.s)movement=-1;
+if(keys.a)turn=1;
+if(keys.d)turn=-1;
+
+player.rotation.y+=turn*.045;
+
+let velocity=keys.shift?0.25:0.13;
+player.position.x-=Math.sin(player.rotation.y)*movement*velocity;
+player.position.z-=Math.cos(player.rotation.y)*movement*velocity;
+}
+
+// Camera follows
+let desired=new THREE.Vector3(
+target.position.x+Math.sin(target.rotation.y)*12,
+target.position.y+7,
+target.position.z+Math.cos(target.rotation.y)*12
+);
+camera.position.lerp(desired,.08);
+camera.lookAt(target.position.x,target.position.y+1,target.position.z);
+
+// Bullets
+for(let i=bullets.length-1;i>=0;i--){
+let b=bullets[i];
+b.position.add(b.userData.velocity);
+if(b.position.distanceTo(target.position)>100){
+scene.remove(b);
+bullets.splice(i,1);
+}
+}
+
+renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',()=>{
+camera.aspect=window.innerWidth/window.innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(window.innerWidth,window.innerHeight);
+});
+</script>
+</body>
+</html>
